@@ -1,0 +1,27 @@
+services:
+  gowvp:
+    # 如果拉不到 docker hub 镜像，也可以尝试
+    # registry.cn-shanghai.aliyuncs.com/ixugo/homenvr:latest
+    image: gospace/gowvp:latest
+    restart: always
+    # linux 解开下行注释，并将 ports 全部注释
+    # network_mode: host
+    ports:
+      # gb28181
+      - 15123:15123 # HTTP：Web 管理 + ONVIF SOAP 服务端
+      - 3702:3702/udp # ONVIF WS-Discovery (能够被其它内网 onvif 发现本平台）
+      - 15060:15060 # gb28181 sip tcp 端口
+      - 15060:15060/udp # gb28181 sip udp 端口
+      # zlm
+      - 1935:1935 # rtmp
+      - 554:554 # rtsp
+      # - 8080:80 # http
+      # - 8443:443 # https
+      # - 10000:10000 # rtp 单端口收流
+      - 20000-20100:20000-20100 # gb28181 收流端口
+      - 20000-20100:20000-20100/udp # gb28181 收流端口udp
+    logging:
+      options:
+        max-size: "100M"
+    volumes:
+      - ./data:/opt/media/bin/configs

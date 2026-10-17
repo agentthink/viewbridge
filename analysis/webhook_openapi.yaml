@@ -1,0 +1,281 @@
+openapi: 3.1.0
+info:
+  title: GOWVP AI 分析服务回调 API
+  version: 2.0.0
+  description: |
+    AI 分析服务发出的 Webhook 回调 API 规范。
+    主服务 (Go) 或其他客户端应实现此 API 以接收 AI 事件。
+
+    回调地址格式: `{callback_url}/{path}`
+    例如: callback_url=http://127.0.0.1:15123，则心跳回调为 http://127.0.0.1:15123/keepalive
+
+servers:
+  - url: "{callback_url}"
+    description: AI 回调服务地址
+    variables:
+      callback_url:
+        default: http://127.0.0.1:15123
+        description: 回调基础 URL
+
+paths:
+  /keepalive:
+    post:
+      summary: 心跳回调
+      description: |
+        AI 分析服务定期发送心跳，用于确认服务存活状态。
+        主服务可以通过此接口监控 AI 服务的运行状态。
+      security:
+        - basicAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/KeepaliveEvent"
+            example:
+              timestamp: 1678886400000
+              stats:
+                active_streams: 5
+                total_detections: 1200
+                uptime_seconds: 3600
+              message: "Service running normally"
+      responses:
+        "200":
+          description: 成功接收心跳
+        "401":
+          description: 未授权 (认证失败)
+
+  /started:
+    post:
+      summary: 服务启动回调
+      description: |
+        AI 分析服务启动完成后发送此回调，用于确认服务已就绪。
+        主服务收到此回调后可以开始向 AI 服务发送分析任务。
+      security:
+        - basicAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StartedEvent"
+            example:
+              timestamp: 1678886400000
+              message: "AI Analysis Service Started"
+      responses:
+        "200":
+          description: 成功接收启动通知
+        "401":
+          description: 未授权 (认证失败)
+
+  /events:
+    post:
+      summary: 检测事件回调
+      description: |
+        当 AI 检测到目标对象时发送此回调。
+        包含检测结果和带有标注的快照图片。
+      security:
+        - basicAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DetectionEvent"
+            example:
+              camera_id: "cam_office_01"
+              timestamp: 1678886400000
+              detections:
+                - label: "person"
+                  confidence: 0.95
+                  box: { x_min: 100, y_min: 100, x_max: 200, y_max: 300 }
+                  area: 20000
+              snapshot: "/9j/4AAQSkZJRg..."
+              snapshot_width: 1920
+              snapshot_height: 1080
+      responses:
+        "200":
+          description: 成功接收检测事件
+        "401":
+          description: 未授权 (认证失败)
+        "400":
+          description: 数据格式无效
+
+  /stopped:
+    post:
+      summary: 任务停止回调
+      description: |
+        当某个摄像头的分析任务停止时发送此回调。
+        可能是用户主动停止，也可能是因为错误导致任务终止。
+      security:
+        - basicAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StoppedEvent"
+            example:
+              camera_id: "cam_office_01"
+              timestamp: 1678886400000
+              reason: "error"
+              message: "RTSP stream connection timed out"
+      responses:
+        "200":
+          description: 成功接收停止通知
+        "401":
+          description: 未授权 (认证失败)
+
+components:
+  securitySchemes:
+    basicAuth:
+      type: http
+      scheme: basic
+      description: |
+        使用用户名 'gowvp' 和配置的密钥 (secret) 进行 Basic Authentication。
+        示例 Header: `Authorization: Basic Z293dnA6YOUR_SECRET`
+
+  schemas:
+    KeepaliveEvent:
+      type: object
+      required:
+        - timestamp
+      properties:
+        timestamp:
+          type: integer
+          format: int64
+          description: 事件发生的 Unix 时间戳 (毫秒)。
+        stats:
+          $ref: "#/components/schemas/GlobalStats"
+        message:
+          type: string
+          description: 附加消息。
+
+    StartedEvent:
+      type: object
+      required:
+        - timestamp
+      properties:
+        timestamp:
+          type: integer
+          format: int64
+          description: 服务启动的 Unix 时间戳 (毫秒)。
+        message:
+          type: string
+          description: 启动消息。
+
+    DetectionEvent:
+      type: object
+      required:
+        - camera_id
+        - timestamp
+        - detections
+      properties:
+        camera_id:
+          type: string
+          description: 生成事件的摄像头 ID。
+        timestamp:
+          type: integer
+          format: int64
+          description: 检测发生的 Unix 时间戳 (毫秒)。
+        detections:
+          type: array
+          items:
+            $ref: "#/components/schemas/DetectionObject"
+        snapshot:
+          type: string
+          description: 带有检测标注的帧画面 Base64 编码 (JPEG 格式)。
+        snapshot_width:
+          type: integer
+          description: 快照图片的宽度。
+        snapshot_height:
+          type: integer
+          description: 快照图片的高度。
+
+    StoppedEvent:
+      type: object
+      required:
+        - camera_id
+        - timestamp
+        - reason
+      properties:
+        camera_id:
+          type: string
+          description: 停止任务的摄像头 ID。
+        timestamp:
+          type: integer
+          format: int64
+          description: 停止发生的 Unix 时间戳 (毫秒)。
+        reason:
+          type: string
+          description: 停止原因 (例如 'user_requested', 'error')。
+        message:
+          type: string
+          description: 包含具体原因的详细信息。
+
+    DetectionObject:
+      type: object
+      required:
+        - label
+        - confidence
+        - box
+      properties:
+        label:
+          type: string
+          description: 检测到的物体类别 (例如 'person', 'car')。
+        confidence:
+          type: number
+          format: float
+          description: 置信度分数 (0.0 - 1.0)。
+        box:
+          $ref: "#/components/schemas/BoundingBox"
+        area:
+          type: integer
+          description: 边界框的像素面积。
+        norm_box:
+          $ref: "#/components/schemas/NormalizedBoundingBox"
+
+    BoundingBox:
+      type: object
+      description: 像素坐标边界框
+      properties:
+        x_min:
+          type: integer
+        y_min:
+          type: integer
+        x_max:
+          type: integer
+        y_max:
+          type: integer
+
+    NormalizedBoundingBox:
+      type: object
+      description: 归一化边界框 (0.0-1.0 范围，相对于图像宽高)
+      properties:
+        x:
+          type: number
+          description: 中心点 X 坐标
+        y:
+          type: number
+          description: 中心点 Y 坐标
+        w:
+          type: number
+          description: 宽度
+        h:
+          type: number
+          description: 高度
+
+    GlobalStats:
+      type: object
+      properties:
+        active_streams:
+          type: integer
+          description: 当前活跃的 RTSP 流数量。
+        total_detections:
+          type: integer
+          format: int64
+          description: 服务启动以来的总检测次数。
+        uptime_seconds:
+          type: integer
+          format: int64
+          description: 服务已运行的时间 (秒)。

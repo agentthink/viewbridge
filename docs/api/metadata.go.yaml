@@ -1,0 +1,107 @@
+openapi: "3.1.0"
+info:
+  title: 通用数据持久化 API
+  version: "1.0.0"
+  description: 通用 JSON 数据的存储服务，ID 由调用方指定
+
+paths:
+  /metadatas/{id}:
+    get:
+      summary: 按 ID 查询数据
+      description: 根据 ID 查询单条数据记录
+      tags:
+        - 通用数据持久化
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: 数据的唯一标识
+      responses:
+        "200":
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/Metadata"
+        "404":
+          description: 记录不存在
+
+    post:
+      summary: 保存数据
+      description: |
+        幂等保存数据记录：已存在则更新 ext，不存在则创建
+        更新说明：
+        2026-03-05
+        - 合并原 POST /metadatas 和 PUT /metadatas/{id} 为 POST /metadatas/{id}
+        - 移除请求体中的 id 字段，改为路径参数传入
+      tags:
+        - 通用数据持久化
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: 数据的唯一标识
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - ext
+              properties:
+                ext:
+                  type: string
+                  maxLength: 2048
+                  description: 序列化的 JSON 字符串
+      responses:
+        "200":
+          description: 保存成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/Metadata"
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    Metadata:
+      type: object
+      properties:
+        id:
+          type: string
+          description: 调用方指定的唯一标识
+        created_at:
+          type: integer
+          description: 创建时间（毫秒时间戳）
+        updated_at:
+          type: integer
+          description: 更新时间（毫秒时间戳）
+        created_by:
+          type: string
+          description: 创建者
+        last_updated_by:
+          type: string
+          description: 最后更新者
+        ext:
+          type: string
+          description: 序列化的 JSON 字符串

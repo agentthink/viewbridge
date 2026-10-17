@@ -1,0 +1,131 @@
+[Server]
+  Debug = false
+  # rtmp 推流秘钥
+  RTMPSecret = '123'
+  # 登录用户名
+  Username = 'admin'
+  # 登录密码
+  Password = 'admin'
+
+  # ai 分析服务
+  [Server.AI]
+    # 是否禁用 ai 分析服务
+    Disabled = false
+    # 保留天数
+    RetainDays = 0
+    # 全局默认分析间隔（秒）
+    # 0   = 使用内置默认值（5 秒）
+    # 1   = 每秒 1 张
+    # 0.5 = 每秒 2 张
+    # 5   = 每 5 秒 1 张（推荐，CPU 占用低）
+    # 30  = 每 30 秒 1 张（超低频场景）
+    AnalysisInterval = 5
+    # 告警冷却时间（秒）：同一目标在此时间窗口内不重复触发告警
+    # 判定规则：标签相同 + 检测框与上次告警框 IoU > 0.3，视为同一目标
+    # 0  = 使用内置默认值（30 秒）
+    # 10 = 10 秒内不重复告警（适合快速移动场景）
+    # 30 = 30 秒内不重复告警（推荐）
+    # 60 = 1 分钟内不重复告警（适合目标长时间驻留场景）
+    AlertCooldownSeconds = 10
+
+  # 对外提供的服务，建议由 nginx 代理
+  [Server.HTTP]
+    # http 端口
+    Port = 15123
+    # 请求超时时间
+    Timeout = '1m0s'
+    # jwt 秘钥，空串时，每次启动程序将随机赋值
+    JwtSecret = ''
+    # 永久 API 秘钥，替代 JWT 鉴权，仅支持数字/大小写字母/下划线且最长32位；若为空或格式不合规将自动生成 32 位 UUID 并回写持久化
+    APISecret = ''
+    # 第三方认证服务地址，空串则不启用，post 请求返回 200 表示认证通过，填写本服务 /health 表示免鉴权但不安全!
+    AuthURL = ''
+
+    [Server.HTTP.PProf]
+      # 是否启用 pprof, 建议设置为 true
+      Enabled = true
+      # 访问白名单
+      AccessIps = ['::1', '127.0.0.1']
+
+  # 录像配置
+  [Server.Recording]
+    # 是否禁用录制（全局开关，true=禁用）
+    Disabled = false
+    # 录像存储根目录（相对于工作目录）
+    StorageDir = './configs/recordings'
+    # 录像保留天数（超过则清理）
+    RetainDays = 3
+    # 磁盘使用率阈值（百分比），超过则触发循环覆盖
+    DiskUsageThreshold = 98.0
+    # MP4 切片时长（秒）
+    SegmentSeconds = 10
+
+  [Server.Webhook]
+    # 推送目标 URL 数组，secret 内嵌于 URL query 参数（如 http://host/webhook/events?secret=xxx）
+    # 发送时 secret 会从 URL 中提取并放入 Authorization header，URL 本身不携带 secret
+    Targets = []
+    # 最大重试次数，0 = 内置默认 3 次
+    MaxRetry = 3
+    # 每个目标的 channel 缓冲队列大小，0 = 内置默认 64，满队列时新事件被丢弃并记录警告
+    BufferSize = 64
+    # 本节点接收 webhook 事件时校验的密钥，首次启动自动生成并持久化，勿置空
+    RecvSecret = ''
+
+[Data]
+  # 数据库支持 sqlite/postgres/mysql, 使用 sqlite 时 dsn 应当填写文件存储路径
+  [Data.Database]
+    Dsn = './configs/data.db'
+    MaxIdleConns = 10
+    MaxOpenConns = 50
+    ConnMaxLifetime = '6h0m0s'
+    SlowThreshold = '200ms'
+
+[Log]
+  # 日志存储目录，不能使用特殊符号
+  Dir = './logs'
+  # 记录级别 debug/info/warn/error
+  Level = 'debug'
+  # 保留日志多久，超过时间自动删除
+  MaxAge = '744h0m0s'
+  # 多久时间，分割一个新的日志文件
+  RotationTime = '12h0m0s'
+  # 多大文件，分割一个新的日志文件(MB)
+  RotationSize = 50
+
+[Sip]
+  # 对设备宣告的本机地址(可选), 为空时按连接来源自动探测, 探测不可达时回退到 Media.SDPIP
+  Host = '192.168.31.10'
+  # 服务监听的 TCP/UDP 端口号
+  Port = 15060
+  # GB/T 28181 20 位国标 ID
+  ID = '34010000002000000001'
+  # 全局注册密码，每个设备可单独设置，空串则无限制接入
+  Password = ''
+
+[Media]
+  # 媒体服务器 IP
+  IP = '127.0.0.1'
+  # 媒体服务器 HTTP 端口
+  HTTPPort = 8080
+  # 媒体服务器密钥
+  Secret = 'jvRqCAzEg7AszBi4gm1cfhwXpmnVmJMG'
+  # 媒体服务器类型 zlm/lalmax
+  Type = 'zlm'
+  # 用于流媒体 webhook 回调
+  WebHookIP = '192.168.31.10'
+  # 媒体服务器 RTP 端口范围
+  RTPPortRange = '20000-20100'
+  # 媒体服务器 SDP IP
+  SDPIP = '192.168.31.10'
+  # WebRTC H265 源流按需转 H264，以下选项修改后重启生效
+  PreviewDisabled = false
+  PreviewFFmpeg = 'ffmpeg'
+  PreviewIdleSeconds = 30
+  PreviewMaxConcurrent = 3
+
+# 对外提供的 ONVIF 服务，账号密码独立于网页登录；修改后重启生效
+[ONVIF]
+  # 未定义或为空时，启动填充 admin
+  Username = ''
+  # 未定义或为空时，启动生成 10 位随机数字密码并保存到本文件
+  Password = ''

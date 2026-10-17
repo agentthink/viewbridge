@@ -1,0 +1,21 @@
+# 2026-01-11
+
+修复 webrtc 播放地址
+支持 ai 检测，支持 onnx 和 tflite
+支持自定义模型，写入 configs/owl.onnx 或 configs/owl.tflite
+支持修改国标信息免重启生效
+修复 rtmp port 偶先值为 0
+
+# 2025-06-14
+重构国标播放逻辑, play 接口仅返回播放地址，通过 webhook 来通知拉流
+可能会导致首播慢一些
+重构 main 函数，将文件移动到项目根目录下
+
+# 2025-02-15
+
+国标流停止，实现 sip bye 请求
+读写国标配置
+
+# 2024-10-12
+
+makefile 版本号计算兼容 windows git-bash

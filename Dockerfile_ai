@@ -1,0 +1,88 @@
+# ============================================
+# 阶段 1: 构建 Python 依赖
+# ============================================
+# ZLMediaKit 基于 Ubuntu 24.04 编译，内嵌 Python 3.12 解释器，
+# pip 包必须与 Python 3.12 ABI 一致，否则 C 扩展模块无法加载
+FROM ubuntu:24.04 AS python-builder
+
+RUN sed -i 's|http://archive.ubuntu.com|http://mirrors.aliyun.com|g; s|http://security.ubuntu.com|http://mirrors.aliyun.com|g' /etc/apt/sources.list.d/ubuntu.sources 2>/dev/null || \
+    sed -i 's|http://archive.ubuntu.com|http://mirrors.aliyun.com|g; s|http://security.ubuntu.com|http://mirrors.aliyun.com|g' /etc/apt/sources.list 2>/dev/null || true
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3 \
+    python3-pip \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN pip3 config set global.index-url https://mirrors.aliyun.com/pypi/simple/ && \
+    pip3 config set global.trusted-host mirrors.aliyun.com
+
+# 安装 Python 依赖到指定目录
+# --no-deps: 避免安装 sympy 等可选依赖
+# --only-binary :all:: 强制只安装预编译包
+RUN pip3 install --no-cache-dir --break-system-packages --target=/python-packages --no-deps --only-binary :all: onnxruntime && \
+    pip3 install --no-cache-dir --break-system-packages --target=/python-packages --only-binary :all: \
+        grpcio \
+        opencv-python-headless==4.10.0.84 \
+        numpy \
+        requests \
+        protobuf && \
+    find /python-packages -type d -name "__pycache__" -prune -exec rm -rf {} +
+
+# ============================================
+# 阶段 2: 最终运行镜像
+# ============================================
+# 与 ZLMediaKit 使用相同基础镜像，自带 Python 3.12，
+# 避免 libpython3.12 版本不匹配和额外复制
+FROM ubuntu:24.04
+
+ENV TZ=Asia/Shanghai
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONPATH=/opt/media/bin/analysis:/python-packages
+
+WORKDIR /opt/media/bin/
+
+# 配置 apt 源使用阿里云镜像加速
+RUN sed -i 's|http://archive.ubuntu.com|http://mirrors.aliyun.com|g; s|http://security.ubuntu.com|http://mirrors.aliyun.com|g' /etc/apt/sources.list.d/ubuntu.sources 2>/dev/null || \
+    sed -i 's|http://archive.ubuntu.com|http://mirrors.aliyun.com|g; s|http://security.ubuntu.com|http://mirrors.aliyun.com|g' /etc/apt/sources.list 2>/dev/null || true
+
+# 安装运行时依赖（极简版）
+# Ubuntu 24.04 已预装 libstdc++6, libgcc-s1, libssl3t64
+# python3: analysis 脚本需要解释器
+# libpython3.12: MediaServer 内嵌 Python 3.12 需要共享库（python3 包不含 .so）
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    tzdata \
+    python3 \
+    libpython3.12 \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
+
+# 从构建阶段复制 Python 包
+COPY --from=python-builder /python-packages /python-packages
+
+# 从外部镜像复制 ZLMediaKit 和 ffmpeg
+COPY --from=zlmediakit/zlmediakit:master /opt/media/bin/MediaServer /opt/media/bin/default.pem /opt/media/bin/
+COPY --from=mwader/static-ffmpeg:6.1 /ffmpeg /usr/local/bin/ffmpeg
+COPY --from=mwader/static-ffmpeg:6.1 /ffprobe /usr/local/bin/ffprobe
+
+# 复制应用文件
+ARG TARGETARCH
+
+RUN mkdir -p configs && \
+    ln -sf /usr/local/bin/ffmpeg /usr/bin/ffmpeg && \
+    chmod +x /usr/local/bin/ffmpeg && \
+    ln -sf /usr/local/bin/ffmpeg /opt/media/bin/ffmpeg
+
+LABEL Name=gowvp \
+      Version=0.1.0 \
+      Maintainer="xx@golang.space" \
+      Description="gowvp & zlmediakit & ai (ONNX Runtime)"
+
+ADD ./build/linux_${TARGETARCH}/bin ./gowvp
+ADD ./www ./www
+ADD ./analysis ./analysis
+
+EXPOSE 15123 1935 8080 554 50051 20000-20100/udp 20000-20100
+
+CMD ["./gowvp"]

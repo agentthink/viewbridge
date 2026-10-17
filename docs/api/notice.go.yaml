@@ -1,0 +1,258 @@
+openapi: 3.1.0
+info:
+  title: 公告管理 API
+  description: 公告领域的增删改查接口
+  version: 1.0.0
+
+tags:
+  - name: notices
+    description: 公告管理
+
+paths:
+  /notices:
+    get:
+      tags:
+        - notices
+      summary: 获取公告列表
+      description: 分页查询公告列表，支持按标题模糊搜索和状态筛选
+      operationId: findNotices
+      parameters:
+        - name: page
+          in: query
+          description: 页码
+          schema:
+            type: integer
+            default: 1
+        - name: size
+          in: query
+          description: 每页数量
+          schema:
+            type: integer
+            default: 10
+        - name: sort
+          in: query
+          description: 排序字段
+          schema:
+            type: string
+        - name: start_ms
+          in: query
+          description: 开始时间（毫秒时间戳）
+          schema:
+            type: integer
+            format: int64
+        - name: end_ms
+          in: query
+          description: 结束时间（毫秒时间戳）
+          schema:
+            type: integer
+            format: int64
+        - name: title
+          in: query
+          description: 公告标题（模糊查询）
+          schema:
+            type: string
+        - name: status
+          in: query
+          description: "状态：1-已发布 2-草稿 3-已撤回"
+          schema:
+            type: integer
+            enum: [1, 2, 3]
+      responses:
+        "200":
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Notice"
+                  total:
+                    type: integer
+                    description: 总数量
+
+    post:
+      tags:
+        - notices
+      summary: 新增公告
+      description: 创建一条新公告
+      operationId: addNotice
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AddNoticeInput"
+      responses:
+        "200":
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Notice"
+
+  /notices/{id}:
+    get:
+      tags:
+        - notices
+      summary: 获取公告详情
+      description: 根据 ID 获取单条公告详情
+      operationId: getNotice
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: 公告 ID
+          schema:
+            type: string
+      responses:
+        "200":
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Notice"
+        "404":
+          description: 公告不存在
+
+    put:
+      tags:
+        - notices
+      summary: 编辑公告
+      description: 根据 ID 编辑公告信息
+      operationId: editNotice
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: 公告 ID
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EditNoticeInput"
+      responses:
+        "200":
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Notice"
+        "404":
+          description: 公告不存在
+
+    delete:
+      tags:
+        - notices
+      summary: 删除公告
+      description: 根据 ID 删除公告
+      operationId: delNotice
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: 公告 ID
+          schema:
+            type: string
+      responses:
+        "200":
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Notice"
+        "404":
+          description: 公告不存在
+
+components:
+  schemas:
+    Notice:
+      type: object
+      description: 公告实体
+      properties:
+        id:
+          type: string
+          description: 公告 ID
+        created_at:
+          type: integer
+          format: int64
+          description: 创建时间（毫秒时间戳）
+        updated_at:
+          type: integer
+          format: int64
+          description: 更新时间（毫秒时间戳）
+        title:
+          type: string
+          description: 公告标题
+        content:
+          type: string
+          description: 公告内容
+        created_by:
+          type: string
+          description: 创建者 ID
+        status:
+          type: integer
+          description: "状态：1-已发布 2-草稿 3-已撤回"
+          enum: [1, 2, 3]
+        priority:
+          type: integer
+          description: 优先级，数值越大优先级越高
+        expired_at:
+          type: integer
+          format: int64
+          description: 过期时间（毫秒时间戳，0 表示永不过期）
+
+    AddNoticeInput:
+      type: object
+      description: 新增公告参数
+      required:
+        - title
+        - content
+      properties:
+        title:
+          type: string
+          description: 公告标题
+        content:
+          type: string
+          description: 公告内容
+        status:
+          type: integer
+          description: "状态：1-已发布 2-草稿 3-已撤回"
+          enum: [1, 2, 3]
+          default: 1
+        priority:
+          type: integer
+          description: 优先级，数值越大优先级越高
+          default: 0
+        expired_at:
+          type: integer
+          format: int64
+          description: 过期时间（毫秒时间戳，0 表示永不过期）
+          default: 0
+
+    EditNoticeInput:
+      type: object
+      description: 编辑公告参数
+      properties:
+        title:
+          type: string
+          description: 公告标题
+        content:
+          type: string
+          description: 公告内容
+        status:
+          type: integer
+          description: "状态：1-已发布 2-草稿 3-已撤回"
+          enum: [1, 2, 3]
+        priority:
+          type: integer
+          description: 优先级，数值越大优先级越高
+        expired_at:
+          type: integer
+          format: int64
+          description: 过期时间（毫秒时间戳，0 表示永不过期）

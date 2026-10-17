@@ -1,0 +1,114 @@
+syntax = "proto3";
+
+package analysis;
+
+option go_package = "./protos";
+
+service AnalysisService {
+  // 启动摄像头分析
+  rpc StartCamera(StartCameraRequest) returns (StartCameraResponse);
+
+  // 停止摄像头分析
+  rpc StopCamera(StopCameraRequest) returns (StopCameraResponse);
+
+  // 获取服务状态
+  rpc GetStatus(StatusRequest) returns (StatusResponse);
+}
+
+service Health {
+  rpc Check(HealthCheckRequest) returns (HealthCheckResponse);
+}
+
+// 启动摄像头分析请求
+message StartCameraRequest {
+  // === 基础信息 ===
+  string camera_id = 1;           // 摄像头唯一标识 (必填)
+  string camera_name = 2;         // 摄像头名称，用于日志 (可选)
+  string rtsp_url = 3;            // RTSP 子码流地址 (必填)
+
+  // === 检测配置 ===
+  float detect_interval_seconds = 4; // 分析间隔（秒），默认 2.0，支持小数（如 0.5 表示每秒 2 帧）
+  repeated string labels = 5;     // 要检测的标签，如 ["person", "car"]，空则检测全部
+  float threshold = 6;            // 置信度阈值，默认 0.5
+
+  // === ROI 区域（多区域，替代旧的 roi_points）===
+  // 每个 Zone 含独立的多边形坐标和标签，支持不同区域检测不同目标
+  repeated AnalysisZone zones = 7;
+
+  // 告警冷却时间（秒），冷却期内同一目标（标签相同且框 IoU>0.3）不重复告警，默认 30 秒
+  float alert_cooldown_seconds = 9;
+
+  // 错误处理
+  int32 retry_limit = 8;          // 遇到错误的自动重试次数，默认 10
+
+  // === 回调配置 ===
+  // 优先级高于服务启动时的默认配置
+  string callback_url = 10;        // HTTP 回调地址 (必填)
+  string callback_secret = 11;     // 回调签名密钥 (可选，用于验证)
+}
+
+message StartCameraResponse {
+  bool success = 1;
+  string message = 2;
+
+  // 流信息 (通过 ffprobe 探测返回)
+  int32 source_width = 3;    // 原始分辨率宽度
+  int32 source_height = 4;   // 原始分辨率高度
+  float source_fps = 5;      // 原始帧率
+}
+
+message StopCameraRequest {
+  string camera_id = 1;
+}
+
+message StopCameraResponse {
+    bool success = 1;
+    string message = 2;
+}
+
+message StatusRequest {}
+
+message StatusResponse {
+  bool is_ready = 1;                    // AI 模型是否加载完成
+  repeated CameraStatus cameras = 2;    // 摄像头状态列表
+  GlobalStats stats = 3;                // 全局统计信息
+}
+
+message CameraStatus {
+  string camera_id = 1;
+  string status = 2;                    // "running", "error", "stopped"
+  int64 frames_processed = 3;           // 已处理帧数
+  string last_error = 4;                // 最后一次错误信息
+  int32 retry_count = 5;                // 当前重试次数
+}
+
+message GlobalStats {
+    int32 active_streams = 1;        // 当前活跃 RTSP 流数量
+    int64 total_detections = 2;      // 服务启动以来的总检测次数
+    int64 uptime_seconds = 3;        // 运行时间
+}
+
+// =============================================================================
+// 健康检查相关
+// =============================================================================
+
+message HealthCheckRequest {}
+
+message HealthCheckResponse {
+  enum ServingStatus {
+    UNKNOWN = 0;
+    SERVING = 1;    // 服务正常
+    NOT_SERVING = 2;// 服务不可用 (加载模型中)
+  }
+  ServingStatus status = 1;
+}
+
+// 单个检测区域：归一化多边形 + 该区域关注的标签
+message AnalysisZone {
+  // 归一化坐标，按 x1,y1,x2,y2,... 顺序平铺，如 [0.1,0.2, 0.5,0.2, 0.5,0.8, 0.1,0.8]
+  repeated float points = 1;
+  // 该区域关注的目标标签，空则使用全局 labels
+  repeated string labels = 2;
+  // 区域名称，用于日志（可选）
+  string name = 3;
+}

@@ -1,0 +1,114 @@
+package api
+
+import (
+	"os"
+	"path/filepath"
+
+	"github.com/gin-gonic/gin"
+	"github.com/gowvp/owl/internal/conf"
+	"github.com/gowvp/owl/internal/core/event"
+	"github.com/gowvp/owl/internal/core/event/stores/eventdb"
+	"github.com/ixugo/goddd/pkg/orm"
+	"github.com/ixugo/goddd/pkg/reason"
+	"github.com/ixugo/goddd/pkg/system"
+	"github.com/ixugo/goddd/pkg/web"
+	"gorm.io/gorm"
+)
+
+// EventAPI 为 http 提供业务方法
+type EventAPI struct {
+	eventCore event.Core
+	conf      *conf.Bootstrap
+}
+
+func NewEventCore(db *gorm.DB, conf *conf.Bootstrap, notifier event.Dispatcher) event.Core {
+	var store event.Storer
+	store = eventdb.NewDB(db).AutoMigrate(orm.GetEnabledAutoMigrate())
+	core := event.NewCore(store, notifier)
+
+	// 启动定时清理协程
+	days := conf.Server.AI.RetainDays
+	if days <= 0 {
+		days = 7
+	}
+	go core.StartCleanupWorker(days)
+
+	return core
+}
+
+func NewEventAPI(core event.Core, conf *conf.Bootstrap) EventAPI {
+	return EventAPI{eventCore: core, conf: conf}
+}
+
+// eventIDInput 事件 ID 路径参数
+type eventIDInput = event.GetEventInput
+
+// updateEventInput 更新事件的请求参数（路径 ID + 请求体）
+type updateEventInput = event.UpdateEventInput
+
+func RegisterEvent(g gin.IRouter, api EventAPI, handler ...gin.HandlerFunc) {
+	{
+		group := g.Group("/events", handler...)
+		group.GET("", web.WrapH(api.listEvents))
+		group.GET("/:id", web.WrapH(api.getEvent))
+		group.PUT("/:id", web.WrapH(api.updateEvent))
+		group.DELETE("/:id", web.WrapH(api.deleteEvent))
+	}
+	// 图片接口不需要认证中间件
+	// TODO: 待添加鉴权
+	g.GET("/events/image/*path", api.getEventImage)
+}
+
+// listEvents 分页查询事件列表
+func (a EventAPI) listEvents(c *gin.Context, in *event.ListEventInput) (any, error) {
+	ctx := web.WithContext(c.Request)
+	items, total, err := a.eventCore.ListEvents(ctx, in)
+	return gin.H{"items": items, "total": total}, err
+}
+
+// getEvent 获取单个事件详情
+func (a EventAPI) getEvent(c *gin.Context, in *eventIDInput) (*event.Event, error) {
+	return a.eventCore.GetEvent(c.Request.Context(), in.ID)
+}
+
+// updateEvent 更新事件信息
+func (a EventAPI) updateEvent(c *gin.Context, in *updateEventInput) (*event.Event, error) {
+	return a.eventCore.UpdateEvent(c.Request.Context(), in)
+}
+
+// deleteEvent 删除事件
+func (a EventAPI) deleteEvent(c *gin.Context, in *eventIDInput) (*event.Event, error) {
+	return a.eventCore.DeleteEvent(c.Request.Context(), in.ID)
+}
+
+// getEventImage 获取事件快照图片
+func (a EventAPI) getEventImage(c *gin.Context) {
+	imagePath := c.Param("path")
+	if imagePath == "" {
+		web.Fail(c, reason.ErrNotFound.WithMsg("image path is required"))
+		return
+	}
+
+	// 去除开头的斜杠
+	if len(imagePath) > 0 && imagePath[0] == '/' {
+		imagePath = imagePath[1:]
+	}
+
+	fullPath := filepath.Join(system.Getwd(), "configs", "events", imagePath)
+
+	// 安全检查：防止路径遍历攻击
+	eventsDir := filepath.Join(system.Getwd(), "configs", "events")
+	absPath, err := filepath.Abs(fullPath)
+	if err != nil || !filepath.HasPrefix(absPath, eventsDir) {
+		web.Fail(c, reason.ErrNotFound.WithMsg("invalid path"))
+		return
+	}
+
+	body, err := os.ReadFile(fullPath)
+	if err != nil {
+		web.Fail(c, reason.ErrNotFound.WithMsg(err.Error()))
+		return
+	}
+
+	c.Data(200, "image/jpeg", body)
+}

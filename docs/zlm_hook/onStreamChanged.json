@@ -1,0 +1,56 @@
+{
+  "aliveSecond": 0,
+  "app": "live",
+  "bytesSpeed": 0,
+  "createStamp": 1737468605,
+  "hook_index": 12001,
+  "isRecordingHLS": true,
+  "isRecordingMP4": false,
+  "mediaServerId": "local",
+  "originSock": {
+    "identifier": "12015-84",
+    "local_ip": "172.20.0.2",
+    "local_port": 1935,
+    "peer_ip": "172.20.0.1",
+    "peer_port": 55620
+  },
+  "originType": 1,
+  "originTypeStr": "rtmp_push",
+  "originUrl": "rtmp://__defaultVhost__/live/123?sign=3e80d1762a324d5b0ff636e0bd16f1e3",
+  "params": "sign=3e80d1762a324d5b0ff636e0bd16f1e3",
+  "readerCount": 0,
+  "regist": true,
+  "schema": "fmp4",
+  "stream": "123",
+  "totalReaderCount": 0,
+  "tracks": [
+    {
+      "channels": 2,
+      "codec_id": 2,
+      "codec_id_name": "mpeg4-generic",
+      "codec_type": 1,
+      "duration": 0,
+      "frames": 1,
+      "loss": -1.0,
+      "ready": true,
+      "sample_bit": 16,
+      "sample_rate": 22050
+    },
+    {
+      "codec_id": 0,
+      "codec_id_name": "H264",
+      "codec_type": 0,
+      "duration": 100,
+      "fps": 30.0,
+      "frames": 5,
+      "gop_interval_ms": 1,
+      "gop_size": 1,
+      "height": 480,
+      "key_frames": 1,
+      "loss": -1.0,
+      "ready": true,
+      "width": 852
+    }
+  ],
+  "vhost": "__defaultVhost__"
+}

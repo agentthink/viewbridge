@@ -1,0 +1,1130 @@
+openapi: 3.1.0
+info:
+  title: IPC 设备与通道管理 API
+  description: 统一的设备管理和通道管理接口，支持 GB28181、ONVIF、RTMP、RTSP 等多种协议
+  version: 1.1.0
+
+tags:
+  - name: GB28181
+    description: GB28181 协议特有接口
+  - name: 设备管理
+    description: 统一的设备管理 API（支持所有协议）
+  - name: ONVIF
+    description: ONVIF 协议特有接口
+  - name: 通道管理
+    description: 统一的通道管理 API（支持所有协议）
+
+paths:
+  /gb28181/snapshot:
+    post:
+      summary: GB28181 快照回调
+      description: GB28181 协议特有的快照回调接口，接收设备上报的快照图片
+      tags:
+        - GB28181
+      requestBody:
+        required: true
+        content:
+          application/octet-stream:
+            schema:
+              type: string
+              format: binary
+              description: JPEG 图片二进制数据
+      responses:
+        "200":
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  msg:
+                    type: string
+                    example: ok
+
+  /devices:
+    get:
+      summary: 设备列表
+      description: 设备列表（所有协议）
+      tags:
+        - 设备管理
+      parameters:
+        - name: page
+          in: query
+          description: 页码
+          schema:
+            type: integer
+        - name: size
+          in: query
+          description: 每页数量
+          schema:
+            type: integer
+        - name: sort
+          in: query
+          description: 排序字段
+          schema:
+            type: string
+        - name: key
+          in: query
+          description: 搜索关键字
+          schema:
+            type: string
+      responses:
+        "200":
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Device"
+                  total:
+                    type: integer
+                    description: 总数
+
+    post:
+      summary: 添加设备
+      description: |
+        添加设备（所有协议，通过 type 区分）
+
+        示例1 - 添加 GB28181 设备:
+        ```json
+        { "type": "GB28181", "device_id": "34020000001320000001", "name": "摄像头1" }
+        ```
+
+        示例2 - 添加 ONVIF 设备:
+        ```json
+        { "type": "ONVIF", "ip": "192.168.1.100", "port": 80, "username": "admin", "password": "12345" }
+        ```
+      tags:
+        - 设备管理
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AddDeviceInput"
+      responses:
+        "200":
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Device"
+
+  /devices/{id}:
+    get:
+      summary: 设备详情
+      description: 设备详情（所有协议）
+      tags:
+        - 设备管理
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: 设备 ID
+          schema:
+            type: string
+      responses:
+        "200":
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Device"
+
+    put:
+      summary: 修改设备
+      description: 修改设备（所有协议）
+      tags:
+        - 设备管理
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: 设备 ID
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EditDeviceInput"
+      responses:
+        "200":
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Device"
+
+    delete:
+      summary: 删除设备
+      description: 删除设备（所有协议）
+      tags:
+        - 设备管理
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: 设备 ID
+          schema:
+            type: string
+      responses:
+        "200":
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Device"
+
+  /devices/channels:
+    get:
+      summary: 设备与通道列表
+      description: 设备与通道列表（所有协议），返回设备及其子通道
+      tags:
+        - 设备管理
+      parameters:
+        - name: page
+          in: query
+          description: 页码
+          schema:
+            type: integer
+        - name: size
+          in: query
+          description: 每页数量
+          schema:
+            type: integer
+        - name: sort
+          in: query
+          description: 排序字段
+          schema:
+            type: string
+        - name: key
+          in: query
+          description: 搜索关键字
+          schema:
+            type: string
+      responses:
+        "200":
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/DeviceWithChannels"
+                  total:
+                    type: integer
+                    description: 总数
+
+  /devices/{id}/catalog:
+    post:
+      summary: 查询设备目录
+      description: 查询设备目录（GB28181 协议）
+      tags:
+        - 设备管理
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: 设备 ID
+          schema:
+            type: string
+      responses:
+        "200":
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  msg:
+                    type: string
+                    example: ok
+
+  /onvif/discover:
+    get:
+      summary: ONVIF 设备发现
+      description: ONVIF 设备发现（ONVIF 特有），返回 SSE 事件流
+      tags:
+        - ONVIF
+      responses:
+        "200":
+          description: SSE 事件流
+          content:
+            text/event-stream:
+              schema:
+                type: object
+                properties:
+                  event:
+                    type: string
+                    description: 事件类型（discover/end）
+                  data:
+                    type: object
+                    description: 发现的设备信息
+
+  /channels:
+    get:
+      summary: 通道列表
+      description: 通道列表（所有协议）
+      tags:
+        - 通道管理
+      parameters:
+        - name: page
+          in: query
+          description: 页码
+          schema:
+            type: integer
+        - name: size
+          in: query
+          description: 每页数量
+          schema:
+            type: integer
+        - name: sort
+          in: query
+          description: 排序字段
+          schema:
+            type: string
+        - name: did
+          in: query
+          description: 设备 ID
+          schema:
+            type: string
+        - name: device_id
+          in: query
+          description: 国标编码
+          schema:
+            type: string
+        - name: key
+          in: query
+          description: 名称/国标编码 模糊搜索，id 精确搜索
+          schema:
+            type: string
+        - name: is_online
+          in: query
+          description: 是否在线（true/false）
+          schema:
+            type: string
+        - name: type
+          in: query
+          description: 通道类型（GB28181/ONVIF/RTMP/RTSP）
+          schema:
+            type: string
+            enum:
+              - GB28181
+              - ONVIF
+              - RTMP
+              - RTSP
+        - name: app
+          in: query
+          description: 应用名（RTMP/RTSP）
+          schema:
+            type: string
+        - name: stream
+          in: query
+          description: 流 ID（RTMP/RTSP）
+          schema:
+            type: string
+      responses:
+        "200":
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Channel"
+                  total:
+                    type: integer
+                    description: 总数
+
+    post:
+      summary: 添加通道
+      description: |
+        添加 RTMP/RTSP 通道
+
+        设备关联逻辑：
+        1. 如果提供 device_id，则关联到已存在的设备
+        2. 如果提供 device_name（无 device_id），则创建新的虚拟设备
+        3. 两者都不提供则返回错误
+
+        示例1 - 添加 RTMP 推流通道（关联已有设备）:
+        ```json
+        {
+          "type": "RTMP",
+          "name": "推流通道1",
+          "device_id": "mp123456",
+          "app": "live",
+          "stream": "stream1",
+          "config": {
+            "is_auth_disabled": false
+          }
+        }
+        ```
+
+        示例2 - 添加 RTSP 拉流通道（创建新设备）:
+        ```json
+        {
+          "type": "RTSP",
+          "name": "拉流通道1",
+          "device_name": "新设备",
+          "app": "live",
+          "stream": "stream2",
+          "config": {
+            "source_url": "rtsp://192.168.1.100:554/stream",
+            "transport": 0,
+            "enabled": true
+          }
+        }
+        ```
+      tags:
+        - 通道管理
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AddChannelInput"
+      responses:
+        "200":
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Channel"
+
+  /channels/{id}:
+    put:
+      summary: 修改通道
+      description: 修改通道（所有协议）
+      tags:
+        - 通道管理
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: 通道 ID
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EditChannelInput"
+      responses:
+        "200":
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Channel"
+
+    delete:
+      summary: 删除通道
+      description: 删除 RTMP/RTSP 通道（仅支持删除 RTMP/RTSP 类型通道）
+      tags:
+        - 通道管理
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: 通道 ID
+          schema:
+            type: string
+      responses:
+        "200":
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Channel"
+
+  /channels/{id}/play:
+    post:
+      summary: 播放
+      description: 播放（所有协议）
+      tags:
+        - 通道管理
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: 通道 ID
+          schema:
+            type: string
+      responses:
+        "200":
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlayOutput"
+
+  /channels/{id}/snapshot:
+    post:
+      summary: 图像抓拍
+      description: 图像抓拍（所有协议）
+      tags:
+        - 通道管理
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: 通道 ID
+          schema:
+            type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RefreshSnapshotInput"
+      responses:
+        "200":
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  link:
+                    type: string
+                    description: 快照图片链接
+
+    get:
+      summary: 获取图像
+      description: 获取图像（所有协议）
+      tags:
+        - 通道管理
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: 通道 ID
+          schema:
+            type: string
+      responses:
+        "200":
+          description: JPEG 图片
+          content:
+            image/jpeg:
+              schema:
+                type: string
+                format: binary
+
+  /channels/{id}/zones:
+    post:
+      summary: 添加区域
+      description: 添加区域（所有协议）
+      tags:
+        - 通道管理
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: 通道 ID
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AddZoneInput"
+      responses:
+        "200":
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    $ref: "#/components/schemas/Zone"
+
+    get:
+      summary: 获取区域
+      description: 获取区域（所有协议）
+      tags:
+        - 通道管理
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: 通道 ID
+          schema:
+            type: string
+      responses:
+        "200":
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Zone"
+
+  /channels/{id}/ai/enable:
+    post:
+      summary: 启用 AI 检测
+      description: |
+        启用指定通道的 AI 检测功能
+
+        前置条件：
+        1. 全局 AI 服务已启用（配置文件中 AI.Disabled=false）
+        2. AI 服务已连接正常
+      tags:
+        - 通道管理
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: 通道 ID
+          schema:
+            type: string
+      responses:
+        "200":
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  enabled:
+                    type: boolean
+                    description: AI 检测是否已启用
+                    example: true
+                  message:
+                    type: string
+                    description: 返回消息
+                  source_width:
+                    type: integer
+                    description: 视频源宽度
+                  source_height:
+                    type: integer
+                    description: 视频源高度
+                  source_fps:
+                    type: number
+                    description: 视频源帧率
+
+  /channels/{id}/ai/disable:
+    post:
+      summary: 禁用 AI 检测
+      description: 禁用指定通道的 AI 检测功能，会同时停止正在运行的检测任务
+      tags:
+        - 通道管理
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: 通道 ID
+          schema:
+            type: string
+      responses:
+        "200":
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  enabled:
+                    type: boolean
+                    description: AI 检测是否已启用
+                    example: false
+                  message:
+                    type: string
+                    description: 返回消息
+                    example: AI 检测已停止
+
+  /channels/{id}/media_info:
+    get:
+      summary: 获取流详细信息
+      description: 获取指定通道流的详细信息，包括音视频编码、分辨率、帧率、采样率等
+      tags:
+        - 通道管理
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: 通道 ID
+          schema:
+            type: string
+      responses:
+        "200":
+          description: 成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  app:
+                    type: string
+                    description: 应用名
+                  stream:
+                    type: string
+                    description: 流 ID
+                  schema:
+                    type: string
+                    description: 协议名
+                  vhost:
+                    type: string
+                    description: 虚拟主机
+                  reader_count:
+                    type: integer
+                    description: 当前观看人数
+                  total_reader_count:
+                    type: integer
+                    description: 总观看人数
+                  alive_second:
+                    type: integer
+                    description: 流存活时长（秒）
+                  origin_type_str:
+                    type: string
+                    description: 流来源类型
+                  tracks:
+                    type: array
+                    description: 音视频轨道列表
+                    items:
+                      type: object
+                      properties:
+                        codec_id:
+                          type: integer
+                          description: 编码 ID（H264=0, H265=1, AAC=2, G711A=3, G711U=4）
+                        codec_id_name:
+                          type: string
+                          description: 编码名称
+                        codec_type:
+                          type: integer
+                          description: 轨道类型（Video=0, Audio=1）
+                        ready:
+                          type: boolean
+                          description: 轨道是否就绪
+                        fps:
+                          type: number
+                          description: 视频帧率
+                        width:
+                          type: integer
+                          description: 视频宽度
+                        height:
+                          type: integer
+                          description: 视频高度
+                        channels:
+                          type: integer
+                          description: 音频通道数
+                        sample_bit:
+                          type: integer
+                          description: 音频采样位数
+                        sample_rate:
+                          type: integer
+                          description: 音频采样率
+
+components:
+  schemas:
+    Device:
+      type: object
+      properties:
+        id:
+          type: string
+          description: 设备 ID
+        type:
+          type: string
+          description: 设备类型（GB28181/ONVIF/RTMP/RTSP）
+        device_id:
+          type: string
+          description: 20 位国标编号
+        name:
+          type: string
+          description: 设备名称
+        transport:
+          type: string
+          description: 传输协议（TCP/UDP）
+        stream_mode:
+          type: integer
+          description: 数据传输模式（0:UDP; 1:TCP_PASSIVE; 2:TCP_ACTIVE）
+        ip:
+          type: string
+          description: IP 地址
+        port:
+          type: integer
+          description: 端口
+        is_online:
+          type: boolean
+          description: 是否在线
+        registered_at:
+          type: integer
+          description: 注册时间（毫秒时间戳）
+        keepalive_at:
+          type: integer
+          description: 心跳时间（毫秒时间戳）
+        keepalives:
+          type: integer
+          description: 心跳间隔
+        expires:
+          type: integer
+          description: 注册有效期
+        channels:
+          type: integer
+          description: 通道数量
+        created_at:
+          type: integer
+          description: 创建时间（毫秒时间戳）
+        updated_at:
+          type: integer
+          description: 更新时间（毫秒时间戳）
+        password:
+          type: string
+          description: 注册密码
+        address:
+          type: string
+          description: 设备网络地址
+        username:
+          type: string
+          description: 用户名
+        ext:
+          $ref: "#/components/schemas/DeviceExt"
+
+    DeviceWithChannels:
+      allOf:
+        - $ref: "#/components/schemas/Device"
+        - type: object
+          properties:
+            children:
+              type: array
+              items:
+                $ref: "#/components/schemas/Channel"
+              description: 子通道列表
+
+    Channel:
+      type: object
+      properties:
+        id:
+          type: string
+          description: 通道 ID
+        did:
+          type: string
+          description: 父级设备 ID
+        device_id:
+          type: string
+          description: 国标编码
+        channel_id:
+          type: string
+          description: 国标编码
+        name:
+          type: string
+          description: 通道名称
+        ptztype:
+          type: integer
+          description: 云台类型
+        is_online:
+          type: boolean
+          description: 是否在线（RTMP/RTSP 表示推流/拉流状态）
+        is_playing:
+          type: boolean
+          description: 是否播放中
+        type:
+          type: string
+          description: 通道类型（GB28181/ONVIF/RTMP/RTSP）
+        app:
+          type: string
+          description: 应用名（RTMP/RTSP）
+        stream:
+          type: string
+          description: 流 ID（RTMP/RTSP）
+        config:
+          $ref: "#/components/schemas/StreamConfig"
+        created_at:
+          type: integer
+          description: 创建时间（毫秒时间戳）
+        updated_at:
+          type: integer
+          description: 更新时间（毫秒时间戳）
+        ext:
+          $ref: "#/components/schemas/DeviceExt"
+
+    StreamConfig:
+      type: object
+      description: 流配置（RTMP 推流和 RTSP 拉流代理）
+      properties:
+        # RTMP 推流配置
+        is_auth_disabled:
+          type: boolean
+          description: 是否禁用推流鉴权
+        pushed_at:
+          type: integer
+          description: 最后推流时间（毫秒时间戳）
+        stopped_at:
+          type: integer
+          description: 最后停止时间（毫秒时间戳）
+        media_server_id:
+          type: string
+          description: 媒体服务器 ID
+        push_addr:
+          type: string
+          description: 推流地址（动态生成，仅在查询时返回）
+        # RTSP 拉流配置
+        source_url:
+          type: string
+          description: 原始 RTSP URL
+        transport:
+          type: integer
+          description: 拉流方式（0:tcp, 1:udp）
+        timeout_s:
+          type: integer
+          description: 超时时间（秒）
+        enabled_audio:
+          type: boolean
+          description: 是否启用音频
+        enabled_remove_none_reader:
+          type: boolean
+          description: 无人观看时删除
+        enabled_disabled_none_reader:
+          type: boolean
+          description: 无人观看时禁用
+        stream_key:
+          type: string
+          description: ZLM 返回的 key
+        enabled:
+          type: boolean
+          description: 是否启用
+
+    DeviceExt:
+      type: object
+      properties:
+        manufacturer:
+          type: string
+          description: 生产厂商
+        model:
+          type: string
+          description: 型号
+        firmware:
+          type: string
+          description: 固件版本
+        name:
+          type: string
+          description: 设备名
+        gb_version:
+          type: string
+          description: GB 版本
+        zones:
+          type: array
+          items:
+            $ref: "#/components/schemas/Zone"
+          description: 区域
+        enabled_ai:
+          type: boolean
+          description: 是否启用 AI
+
+    Zone:
+      type: object
+      properties:
+        name:
+          type: string
+          description: 区域名称
+        coordinates:
+          type: array
+          items:
+            type: number
+            format: float
+          description: 坐标
+        color:
+          type: string
+          description: 颜色，支持 hex 颜色值，如 #FF0000
+        labels:
+          type: array
+          items:
+            type: string
+          description: 标签
+
+    AddDeviceInput:
+      type: object
+      properties:
+        device_id:
+          type: string
+          description: 20 位国标编号
+        username:
+          type: string
+          description: 用户名（ONVIF 必填）
+        ip:
+          type: string
+          description: IP 地址（ONVIF 必填）
+        port:
+          type: integer
+          description: 端口（ONVIF 必填）
+        name:
+          type: string
+          description: 设备名称
+        password:
+          type: string
+          description: 注册密码
+        type:
+          type: string
+          description: 设备类型（GB28181/ONVIF）
+          enum:
+            - GB28181
+            - ONVIF
+
+    EditDeviceInput:
+      type: object
+      properties:
+        device_id:
+          type: string
+          description: 20 位国标编号
+        name:
+          type: string
+          description: 设备名称
+        password:
+          type: string
+          description: 注册密码
+        stream_mode:
+          type: integer
+          description: 数据传输模式
+        username:
+          type: string
+          description: 用户名
+        ip:
+          type: string
+          description: IP 地址
+        port:
+          type: integer
+          description: 端口
+
+    AddChannelInput:
+      type: object
+      required:
+        - type
+        - name
+        - app
+        - stream
+      properties:
+        type:
+          type: string
+          description: 通道类型（仅支持 RTMP/RTSP）
+          enum:
+            - RTMP
+            - RTSP
+        name:
+          type: string
+          description: 通道名称
+        device_id:
+          type: string
+          description: 可选，关联的父设备 ID（与 device_name 二选一）
+        device_name:
+          type: string
+          description: 可选，device_id 不存在时用于创建新设备（与 device_id 二选一）
+        app:
+          type: string
+          description: 应用名
+        stream:
+          type: string
+          description: 流 ID
+        config:
+          $ref: "#/components/schemas/StreamConfig"
+
+    EditChannelInput:
+      type: object
+      properties:
+        device_id:
+          type: string
+          description: 国标编码
+        name:
+          type: string
+          description: 通道名称
+        ptztype:
+          type: integer
+          description: 云台类型
+        is_online:
+          type: boolean
+          description: 是否在线
+        app:
+          type: string
+          description: 应用名（RTMP/RTSP）
+        stream:
+          type: string
+          description: 流 ID（RTMP/RTSP）
+        config:
+          $ref: "#/components/schemas/StreamConfig"
+        ext:
+          $ref: "#/components/schemas/DeviceExt"
+
+    AddZoneInput:
+      type: object
+      properties:
+        name:
+          type: string
+          description: 区域名称
+        coordinates:
+          type: array
+          items:
+            type: number
+            format: float
+          description: 坐标
+        color:
+          type: string
+          description: 颜色
+        labels:
+          type: array
+          items:
+            type: string
+          description: 标签
+
+    RefreshSnapshotInput:
+      type: object
+      properties:
+        within_seconds:
+          type: integer
+          description: 指定获取多少秒内创建的快照
+        url:
+          type: string
+          description: 取快照的链接地址
+
+    PlayOutput:
+      type: object
+      properties:
+        app:
+          type: string
+          description: 应用名
+        stream:
+          type: string
+          description: 流名
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/StreamLiveAddr"
+          description: 播放地址列表
+
+    StreamLiveAddr:
+      type: object
+      properties:
+        label:
+          type: string
+          description: 标签
+        ws_flv:
+          type: string
+          description: WebSocket FLV 地址
+        http_flv:
+          type: string
+          description: HTTP FLV 地址
+        rtmp:
+          type: string
+          description: RTMP 地址
+        rtsp:
+          type: string
+          description: RTSP 地址
+        webrtc:
+          type: string
+          description: WebRTC 地址
+        hls:
+          type: string
+          description: HLS 地址

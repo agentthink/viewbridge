@@ -1,0 +1,12 @@
+# ONNX Runtime - 用于加载 .onnx 模型
+onnxruntime>=1.17.0
+
+# gRPC 框架
+grpcio>=1.60.0
+
+# 图像处理 (headless 版本更小)
+opencv-python-headless>=4.8.0
+numpy>=1.24.0
+
+# HTTP 客户端
+requests>=2.31.0
